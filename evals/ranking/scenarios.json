@@ -1,0 +1,61 @@
+{
+  "note": "Hand-written scenarios that exercise the ranking harness. The 'relevant' labels are one person's judgement, written alongside the ranker, so the numbers they produce are NOT evidence that mood helps. Replace them with labels from simulated users or pilot participants before quoting a result.",
+  "scenarios": [
+    {
+      "name": "Tired after a long week, wants a few people around, likes art and cafes",
+      "interests": ["art", "cafe", "quiet"],
+      "dislikes": ["lively"],
+      "state": { "mood": ["tired", "calm"], "energy": 2, "social": "small_group", "timeBudgetMinutes": 150 },
+      "relevant": ["harvard-art-museums", "trident-booksellers", "bpl-copley", "mfa-boston", "ica-boston"]
+    },
+    {
+      "name": "Adventurous, free afternoon, happy to meet strangers, likes street food and local history",
+      "interests": ["street food", "local history", "exploring"],
+      "dislikes": [],
+      "state": { "mood": ["adventurous"], "energy": 4, "social": "open", "timeBudgetMinutes": 180 },
+      "relevant": ["chinatown-food-walk", "freedom-trail-walk", "middlesex-fells-hike", "castle-island-loop"]
+    },
+    {
+      "name": "Restless, wants to move, alone, 90 minutes, likes nature",
+      "interests": ["nature", "walk", "outdoors"],
+      "dislikes": [],
+      "state": { "mood": ["restless"], "energy": 4, "social": "solo", "timeBudgetMinutes": 90 },
+      "relevant": ["castle-island-loop", "fresh-pond-loop", "esplanade-sunset-walk"]
+    },
+    {
+      "name": "Stressed, one hour, alone, usually into films and live music",
+      "interests": ["film", "live music", "indie"],
+      "dislikes": [],
+      "state": { "mood": ["stressed"], "energy": 1, "social": "solo", "timeBudgetMinutes": 60 },
+      "relevant": ["bpl-copley", "esplanade-sunset-walk", "fresh-pond-loop", "trident-booksellers"]
+    },
+    {
+      "name": "Celebrating with friends tonight, though usually a quiet-museum person",
+      "interests": ["museum", "art", "quiet"],
+      "dislikes": [],
+      "state": { "mood": ["celebrating", "excited"], "energy": 5, "social": "small_group", "timeBudgetMinutes": 120 },
+      "relevant": ["candlepin-davis", "bow-market", "chinatown-food-walk"]
+    },
+    {
+      "name": "Calm Sunday, three hours, alone, likes history and architecture",
+      "interests": ["local history", "architecture", "history"],
+      "dislikes": [],
+      "state": { "mood": ["calm"], "energy": 2, "social": "solo", "timeBudgetMinutes": 180 },
+      "relevant": ["bpl-copley", "mount-auburn-cemetery", "mfa-boston"]
+    },
+    {
+      "name": "Low energy but wants company, two hours, likes casual food",
+      "interests": ["food", "street food", "casual"],
+      "dislikes": [],
+      "state": { "mood": ["tired"], "energy": 2, "social": "open", "timeBudgetMinutes": 120 },
+      "relevant": ["bow-market", "chinatown-food-walk"]
+    },
+    {
+      "name": "Buzzing, three hours, a few friends, usually a books-and-coffee person",
+      "interests": ["books", "cafe", "coffee"],
+      "dislikes": [],
+      "state": { "mood": ["energetic"], "energy": 5, "social": "small_group", "timeBudgetMinutes": 180 },
+      "relevant": ["candlepin-davis", "middlesex-fells-hike", "bow-market", "chinatown-food-walk"]
+    }
+  ]
+}
