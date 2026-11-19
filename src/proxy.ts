@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * handler re-checks the session, and row-level security guards the data.
  */
 
-const SIGNED_IN_ONLY = ["/chat", "/board", "/memory", "/plans"];
+const SIGNED_IN_ONLY = ["/chat", "/board", "/memory", "/plans", "/planner"];
 
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

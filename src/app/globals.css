@@ -32,6 +32,32 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Numbered pin on the map; the same number sits next to the place in the list. */
+.offhours-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  border: 2px solid var(--card);
+  background: var(--accent);
+  color: var(--card);
+  font: 600 14px/1 ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 1px 4px rgb(31 34 51 / 0.4);
+}
+
+.leaflet-container {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.leaflet-popup-content a {
+  display: block;
+  margin-top: 4px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

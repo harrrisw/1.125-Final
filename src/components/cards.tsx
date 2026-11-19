@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import { JoinButton } from "@/components/join-button";
+import { PlacesMap, type MapPlace } from "@/components/places-map";
 import type { ActionState } from "@/lib/chat/store";
 import { formatWhen } from "@/lib/format";
+import { hasCoords, mapsUrl } from "@/lib/links";
 import type { Card } from "@/lib/types";
 
 type NotedCard = Extract<Card, { type: "noted" }>;
 type PickCard = Extract<Card, { type: "pick" }>;
 type ConfirmCard = Extract<Card, { type: "confirm" }>;
+type PlanSavedCard = Extract<Card, { type: "plan_saved" }>;
 
 export function CardList({
   cards,
@@ -18,9 +21,23 @@ export function CardList({
   cards: Card[];
   actions: Record<string, ActionState>;
 }) {
+  const [mapOpen, setMapOpen] = useState(false);
   if (cards.length === 0) return null;
   const noted = cards.filter((c): c is NotedCard => c.type === "noted");
   const rest = cards.filter((c) => c.type !== "noted");
+
+  // Picks are numbered in the order shown, and the map's pins carry the same numbers.
+  const picks = rest.filter((c): c is PickCard => c.type === "pick");
+  const numberOf = new Map(picks.map((p, i) => [p, i + 1]));
+  const onMap: MapPlace[] = picks.filter(hasCoords).map((p) => ({
+    id: p.candidateId,
+    label: String(numberOf.get(p)),
+    title: p.title,
+    subtitle: p.area,
+    lat: p.lat,
+    lng: p.lng,
+    href: mapsUrl(p),
+  }));
 
   return (
     <div className="mt-2 flex flex-col gap-2">
@@ -33,10 +50,25 @@ export function CardList({
       )}
       {rest.map((card) =>
         card.type === "pick" ? (
-          <Pick key={`pick-${card.candidateId}`} card={card} />
+          <Pick key={`pick-${card.candidateId}`} card={card} number={numberOf.get(card) ?? 0} />
         ) : card.type === "confirm" ? (
           <Confirm key={card.actionId} card={card} initial={actions[card.actionId]} />
+        ) : card.type === "plan_saved" ? (
+          <PlanSaved key={`plan-${card.planId}`} card={card} />
         ) : null,
+      )}
+      {onMap.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setMapOpen((open) => !open)}
+            aria-expanded={mapOpen}
+            className="self-start rounded-full border border-line bg-card px-4 py-2 text-sm font-medium hover:bg-sand"
+          >
+            {mapOpen ? "Hide map" : onMap.length === 1 ? "Show on a map" : `Show all ${onMap.length} on a map`}
+          </button>
+          {mapOpen && <PlacesMap places={onMap} label="Map of the suggested places" />}
+        </div>
       )}
     </div>
   );
@@ -72,7 +104,13 @@ function Noted({ card }: { card: NotedCard }) {
   );
 }
 
-function Pick({ card }: { card: PickCard }) {
+const LINK = "font-medium text-accent underline-offset-2 hover:underline";
+
+/**
+ * One idea. Every pick links somewhere: the venue's website when the catalog
+ * has one, always a map, and for an open plan its page on the board.
+ */
+function Pick({ card, number }: { card: PickCard; number: number }) {
   const when = formatWhen(card.startsAt);
   const meta = [card.kind === "open_plan" ? "Open plan" : null, when, card.area]
     .filter(Boolean)
@@ -80,22 +118,63 @@ function Pick({ card }: { card: PickCard }) {
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-2xl border border-line bg-card p-4">
-      <div>
-        {meta && <p className="text-xs font-medium tracking-wide text-accent">{meta}</p>}
-        <p className="font-serif text-lg font-semibold">{card.title}</p>
-        <p className="text-sm text-muted">{card.reason}</p>
-        {card.url && (
-          <a
-            href={card.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-accent underline-offset-2 hover:underline"
-          >
-            Details
-          </a>
-        )}
+      <div className="flex min-w-0 gap-3">
+        <span aria-hidden="true" className="offhours-pin mt-1 shrink-0">
+          {number}
+        </span>
+        <div className="min-w-0">
+          {meta && <p className="text-xs font-medium tracking-wide text-accent">{meta}</p>}
+          <p className="font-serif text-lg font-semibold">{card.title}</p>
+          <p className="text-sm text-muted">{card.reason}</p>
+          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {card.url && (
+              <a href={card.url} target="_blank" rel="noopener noreferrer" className={LINK}>
+                Website
+              </a>
+            )}
+            <a href={mapsUrl(card)} target="_blank" rel="noopener noreferrer" className={LINK}>
+              Open in Google Maps
+            </a>
+            {card.kind === "open_plan" && (
+              <Link href={`/plans/${card.candidateId}`} className={LINK}>
+                See the plan
+              </Link>
+            )}
+          </p>
+        </div>
       </div>
       {card.kind === "open_plan" && <JoinButton postId={card.candidateId} />}
+    </div>
+  );
+}
+
+/** Shown when the companion saved an outing to the Plans tab. Private, and undoable. */
+function PlanSaved({ card }: { card: PlanSavedCard }) {
+  const [state, setState] = useState<"saved" | "working" | "removed">("saved");
+
+  async function undo() {
+    setState("working");
+    const res = await fetch(`/api/itineraries/${card.planId}`, { method: "DELETE" }).catch(() => null);
+    setState(res?.ok ? "removed" : "saved");
+  }
+
+  if (state === "removed") {
+    return <p className="rounded-2xl bg-sand px-4 py-3 text-sm text-muted">Removed from your plans.</p>;
+  }
+  const stops = card.stopCount === 1 ? "1 stop" : `${card.stopCount} stops`;
+  return (
+    <div className="rounded-2xl border border-line bg-card p-4">
+      <p className="text-xs font-medium tracking-wide text-accent">Saved to your plans · only you can see it</p>
+      <p className="font-serif text-lg font-semibold">{card.title}</p>
+      <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className="text-muted">{stops}</span>
+        <Link href={`/planner/${card.planId}`} className={LINK}>
+          Open the plan and map
+        </Link>
+        <button type="button" onClick={undo} disabled={state === "working"} className={`${LINK} disabled:opacity-60`}>
+          Undo
+        </button>
+      </p>
     </div>
   );
 }

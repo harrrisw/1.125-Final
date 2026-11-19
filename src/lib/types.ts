@@ -37,6 +37,8 @@ export interface Candidate {
   category: string | null;
   tags: string[];
   venueName: string | null;
+  /** Street address, for map links. */
+  address?: string | null;
   area: string | null;
   lat: number | null;
   lng: number | null;
@@ -71,8 +73,15 @@ export type Card =
       reason: string;
       startsAt: string | null;
       area: string | null;
+      /** The venue's own website, when the catalog has one. */
       url: string | null;
+      /** For the map. Optional because cards saved before the map existed lack them. */
+      venueName?: string | null;
+      address?: string | null;
+      lat?: number | null;
+      lng?: number | null;
     }
+  | { type: "plan_saved"; planId: string; title: string; stopCount: number }
   | {
       type: "confirm";
       actionId: string;
@@ -82,6 +91,30 @@ export type Card =
       publicText: string | null;
       expiresAt: string;
     };
+
+/** One stop of a saved plan. Venue details are copied in when the plan is saved. */
+export interface PlanStop {
+  id: string;
+  activityId: string | null;
+  title: string;
+  venueName: string | null;
+  address: string | null;
+  area: string | null;
+  lat: number | null;
+  lng: number | null;
+  url: string | null;
+  note: string | null;
+  startsAt: string | null;
+}
+
+/** A private itinerary the user kept from a conversation: stops in visiting order. */
+export interface SavedPlan {
+  id: string;
+  title: string;
+  note: string | null;
+  createdAt: string;
+  stops: PlanStop[];
+}
 
 /** One line of the chat endpoint's newline-delimited JSON stream. */
 export type TurnEvent =

@@ -78,6 +78,9 @@ beforeAll(async () => {
   db = new PGlite({ extensions: { vector } });
   await db.exec(read("./supabase-stub.sql"));
   await db.exec(read("../../supabase/migrations/0001_init.sql"));
+  await db.exec(read("../../supabase/migrations/0002_itineraries.sql"));
+  // 0002 is safe to run again (someone re-running it after a failed attempt).
+  await db.exec(read("../../supabase/migrations/0002_itineraries.sql"));
 
   alice = await signUp("alice@mit.edu");
   bob = await signUp("bob@g.harvard.edu");
@@ -371,8 +374,9 @@ describe("retrieval", () => {
 
   beforeAll(async () => {
     await db.query(
-      `insert into public.activities (source, external_id, title, energy, noise, embedding)
-       values ('seed', 'quiet-cafe', 'Quiet cafe', 2, 1, $1), ('seed', 'loud-bar', 'Loud bar', 4, 5, $2)`,
+      `insert into public.activities (source, external_id, title, address, energy, noise, embedding)
+       values ('seed', 'quiet-cafe', 'Quiet cafe', '1 Main St, Cambridge', 2, 1, $1),
+              ('seed', 'loud-bar', 'Loud bar', null, 4, 5, $2)`,
       [unit(0), unit(1)],
     );
     await as("authenticated", alice, () =>
@@ -387,20 +391,20 @@ describe("retrieval", () => {
   it("scores activities against the caller's own memories only", async () => {
     const candidates = (userId: string) =>
       as("authenticated", userId, async () => {
-        const res = await db.query<{ title: string; interest_sim: number; dislike_sim: number }>(
-          "select title, interest_sim, dislike_sim from public.candidate_activities(now(), now() + interval '1 day') order by title",
+        const res = await db.query<{ title: string; address: string | null; interest_sim: number; dislike_sim: number }>(
+          "select title, address, interest_sim, dislike_sim from public.candidate_activities(now(), now() + interval '1 day') order by title",
         );
         return res.rows;
       });
 
     expect(await candidates(alice)).toEqual([
-      { title: "Loud bar", interest_sim: 0, dislike_sim: 1 },
-      { title: "Quiet cafe", interest_sim: 1, dislike_sim: 0 },
+      { title: "Loud bar", address: null, interest_sim: 0, dislike_sim: 1 },
+      { title: "Quiet cafe", address: "1 Main St, Cambridge", interest_sim: 1, dislike_sim: 0 },
     ]);
     // Bob has no memories, so Alice's must not leak into his scores.
     expect(await candidates(bob)).toEqual([
-      { title: "Loud bar", interest_sim: 0, dislike_sim: 0 },
-      { title: "Quiet cafe", interest_sim: 0, dislike_sim: 0 },
+      { title: "Loud bar", address: null, interest_sim: 0, dislike_sim: 0 },
+      { title: "Quiet cafe", address: "1 Main St, Cambridge", interest_sim: 0, dislike_sim: 0 },
     ]);
   });
 
@@ -416,5 +420,101 @@ describe("retrieval", () => {
       const res = await db.query("select * from public.match_memories($1, 5)", [unit(1)]);
       expect(res.rows).toHaveLength(0);
     });
+  });
+});
+
+describe("saved plans", () => {
+  let cafe: string;
+  let walk: string;
+  let home: string;
+
+  beforeAll(async () => {
+    const add = async (externalId: string, title: string, isPublic = true) => {
+      const res = await db.query<{ id: string }>(
+        `insert into public.activities (source, external_id, title, venue_name, area, lat, lng, url, is_public_venue)
+         values ('seed', $1, $2, $2, 'Back Bay', 42.35, -71.08, 'https://example.org/' || $1, $3) returning id`,
+        [externalId, title, isPublic],
+      );
+      return res.rows[0].id;
+    };
+    cafe = await add("plan-cafe", "Tea at a quiet cafe");
+    walk = await add("plan-walk", "Walk by the river");
+    home = await add("plan-home", "Someone's flat", false);
+  });
+
+  const save = (userId: string | null, stops: object[], replaceId: string | null = null) =>
+    as("authenticated", userId, async () => {
+      const res = await db.query<{ id: string }>(
+        "select public.save_itinerary($1, $2, $3, null, $4) as id",
+        ["Quiet evening", "Tea, then a walk", JSON.stringify(stops), replaceId],
+      );
+      return res.rows[0].id;
+    });
+
+  const plansOf = (viewer: string) =>
+    as("authenticated", viewer, async () => {
+      const plans = await db.query<{ id: string; title: string }>("select id, title from public.itineraries");
+      const stops = await db.query<{ seq: number; title: string; url: string; lat: number }>(
+        "select seq, title, url, lat from public.itinerary_stops order by itinerary_id, seq",
+      );
+      return { plans: plans.rows, stops: stops.rows };
+    });
+
+  it("saves the stops in order with venue details copied from the catalog", async () => {
+    const id = await save(alice, [
+      { activity_id: walk, note: "after tea" },
+      { activity_id: cafe },
+    ]);
+    const mine = await plansOf(alice);
+    expect(mine.plans).toEqual([{ id, title: "Quiet evening" }]);
+    expect(mine.stops).toEqual([
+      { seq: 1, title: "Walk by the river", url: "https://example.org/plan-walk", lat: 42.35 },
+      { seq: 2, title: "Tea at a quiet cafe", url: "https://example.org/plan-cafe", lat: 42.35 },
+    ]);
+  });
+
+  it("keeps a plan private to its owner", async () => {
+    const theirs = await plansOf(bob);
+    expect(theirs.plans).toHaveLength(0);
+    expect(theirs.stops).toHaveLength(0);
+
+    const [alicePlan] = (await plansOf(alice)).plans;
+    await expect(
+      as("authenticated", bob, () =>
+        db.query(
+          "insert into public.itinerary_stops (itinerary_id, user_id, seq, title) values ($1, $2, 9, 'intruder')",
+          [alicePlan.id, bob],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("refuses a stop that is not a public place from the catalog, and saves nothing", async () => {
+    const before = (await plansOf(alice)).plans.length;
+    await expect(save(alice, [{ activity_id: cafe }, { activity_id: home }])).rejects.toThrow(
+      /not a place from the catalog/,
+    );
+    await expect(
+      save(alice, [{ activity_id: "00000000-0000-0000-0000-000000000000" }]),
+    ).rejects.toThrow(/not a place from the catalog/);
+    expect((await plansOf(alice)).plans).toHaveLength(before);
+  });
+
+  it("needs a signed-in user and between 1 and 8 stops", async () => {
+    await expect(save(null, [{ activity_id: cafe }])).rejects.toThrow(/signed-in user/);
+    await expect(save(alice, [])).rejects.toThrow(/between 1 and 8/);
+    await expect(save(alice, Array.from({ length: 9 }, () => ({ activity_id: cafe })))).rejects.toThrow(
+      /between 1 and 8/,
+    );
+  });
+
+  it("replaces a plan only for its owner", async () => {
+    const [old] = (await plansOf(alice)).plans;
+    await expect(save(bob, [{ activity_id: cafe }], old.id)).rejects.toThrow(/not found/);
+
+    const replacement = await save(alice, [{ activity_id: cafe }], old.id);
+    const mine = await plansOf(alice);
+    expect(mine.plans.map((p) => p.id)).toEqual([replacement]);
+    expect(mine.stops.map((s) => s.title)).toEqual(["Tea at a quiet cafe"]);
   });
 });

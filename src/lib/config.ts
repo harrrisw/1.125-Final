@@ -8,6 +8,9 @@ export const MODELS = {
 /** The pilot is one community. Everything location-based is relative to this. */
 export const COMMUNITY = {
   name: "Boston-area students",
+  /** Added to map searches so a venue name resolves to the right place. */
+  region: "Boston, MA",
+  state: "MA",
   timezone: "America/New_York",
   center: { lat: 42.3601, lng: -71.0942 },
   radiusKm: 12,

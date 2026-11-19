@@ -15,6 +15,8 @@ interface ActivityRow {
   category: string | null;
   tags: string[] | null;
   venue_name: string | null;
+  /** Missing until 0002_itineraries.sql has been run. */
+  address?: string | null;
   area: string | null;
   lat: number | null;
   lng: number | null;
@@ -37,6 +39,7 @@ function activityToCandidate(row: ActivityRow): Candidate {
     category: row.category,
     tags: row.tags ?? [],
     venueName: row.venue_name,
+    address: row.address ?? null,
     area: row.area,
     lat: row.lat,
     lng: row.lng,
@@ -61,6 +64,7 @@ export function planToCandidate(post: BoardPost, base: Candidate | undefined): C
     category: base?.category ?? null,
     tags: base?.tags ?? [],
     venueName: base?.venueName ?? null,
+    address: base?.address ?? null,
     area: post.area ?? base?.area ?? null,
     lat: base?.lat ?? null,
     lng: base?.lng ?? null,

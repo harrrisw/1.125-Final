@@ -111,7 +111,9 @@ describe("what the agent can reach", () => {
     const names = buildAgentTools(ctx).map((t) => t.name);
     expect(names).toEqual([...AGENT_TOOL_NAMES]);
     for (const name of names) {
-      expect(name).toMatch(/^(find_|get_|propose_)/);
+      // save_ tools write only the user's own private rows (see the saved-plans
+      // tests in tests/db/schema.test.ts); anything public goes through propose_.
+      expect(name).toMatch(/^(find_|get_|propose_|save_)/);
       expect(name).not.toMatch(/confirm|execute|publish|approve/);
     }
   });

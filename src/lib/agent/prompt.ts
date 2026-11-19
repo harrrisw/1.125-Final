@@ -1,6 +1,6 @@
 import type { DraftStatus } from "@/lib/chat/store";
 import { COMMUNITY } from "@/lib/config";
-import type { Card, ChatMessage, CurrentState, MemoryItem } from "@/lib/types";
+import type { Card, ChatMessage, CurrentState, MemoryItem, SavedPlan } from "@/lib/types";
 
 /**
  * The system prompt is stable (and so cacheable). Everything that changes per
@@ -14,8 +14,13 @@ Before you see each message, a separate step has already saved what the user sai
 
 When they want ideas, call find_activities. It ranks real places, events and other people's open plans against their interests and current mood, and returns a few picks with reasons. Offer at most three, each with one honest reason tied to what you know about them. If nothing fits well, say so and ask the one question that would help most. Only offer what a tool returned: never invent a venue, event, time or plan.
 
+Plans with several stops
+An outing can have more than one stop, such as tea and then a walk by the river. When the user wants that, call find_activities as often as you need and put together stops that sit near each other and fit the time they have. When they settle on an outing, with one stop or several, offer to save it, and call save_plan if they ask or agree. A saved plan is private: it appears in their Plans tab with a link and a map for every stop. Their saved plans are listed in <context>, so you can refer to one or replace it when they change their mind.
+
+Each pick card already carries a website link and a map link, so there is no need to write out addresses or web addresses in your reply.
+
 Acting for the user
-You cannot post, join or add anything yourself. The propose tools create a draft, which the user sees as a card with Confirm and Cancel buttons. After proposing, tell them it is waiting for their tap. You do not find out in the same turn whether they tapped, so never say something was posted, joined or added unless <context> shows that draft as executed.
+Saving a plan is not posting it. You cannot post, join or add anything yourself. The propose tools create a draft, which the user sees as a card with Confirm and Cancel buttons. After proposing, tell them it is waiting for their tap. You do not find out in the same turn whether they tapped, so never say something was posted, joined or added unless <context> shows that draft as executed.
 
 Propose only what the user asked for or clearly agreed to. A post goes on a public board under their name, so write it in their voice, keep it short, and leave out anything from their private memory that they did not ask to share. Meetups happen at public venues only.
 
@@ -93,6 +98,8 @@ export interface TurnContext {
   memories: Pick<MemoryItem, "kind" | "content">[];
   history: ChatMessage[];
   drafts: DraftStatus[];
+  /** The user's most recent saved plans, newest first. */
+  plans?: SavedPlan[];
 }
 
 export function buildTurnContext(ctx: TurnContext): string {
@@ -116,6 +123,14 @@ export function buildTurnContext(ctx: TurnContext): string {
   }
   if (drafts.length > 0) {
     lines.push("Their recent drafts and what became of them:", ...drafts);
+  }
+  if (ctx.plans && ctx.plans.length > 0) {
+    lines.push(
+      "Their saved plans (private, in the Plans tab):",
+      ...ctx.plans.map(
+        (p) => `- "${p.title}" (plan_id ${p.id}): ${p.stops.map((s) => s.title).join(" -> ")}`,
+      ),
+    );
   }
   lines.push("</context>");
   return lines.join("\n");

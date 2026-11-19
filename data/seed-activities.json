@@ -4,6 +4,7 @@
     {
       "externalId": "harvard-art-museums",
       "title": "Harvard Art Museums",
+      "url": "https://harvardartmuseums.org/",
       "description": "Three collections under one glass roof, with a calm courtyard to sit in.",
       "category": "Museum",
       "tags": ["art", "museum", "quiet", "indoor", "galleries"],
@@ -20,6 +21,7 @@
     {
       "externalId": "mfa-boston",
       "title": "Museum of Fine Arts",
+      "url": "https://www.mfa.org/",
       "description": "A large art museum you can wander for an afternoon, from ancient to contemporary.",
       "category": "Museum",
       "tags": ["art", "museum", "indoor", "galleries", "history"],
@@ -36,6 +38,7 @@
     {
       "externalId": "esplanade-sunset-walk",
       "title": "Sunset walk on the Charles River Esplanade",
+      "url": "https://esplanade.org/",
       "description": "A flat riverside path with docks to sit on and a wide view of the sunset over the water.",
       "category": "Outdoors",
       "tags": ["walk", "outdoors", "river", "sunset", "free"],
@@ -51,6 +54,7 @@
     {
       "externalId": "fresh-pond-loop",
       "title": "Fresh Pond loop walk",
+      "url": "https://www.cambridgema.gov/water/freshpondreservation",
       "description": "An easy loop around a reservoir, popular with walkers and dogs. Good for clearing your head.",
       "category": "Outdoors",
       "tags": ["walk", "outdoors", "nature", "pond", "free"],
@@ -66,6 +70,7 @@
     {
       "externalId": "chinatown-food-walk",
       "title": "Chinatown night food walk",
+      "url": "https://www.boston.gov/neighborhood/chinatown-leather-district",
       "description": "Wander a few blocks of bakeries, dumpling shops and noodle spots, trying small things as you go.",
       "category": "Food",
       "tags": ["street food", "food", "walk", "night", "exploring"],
@@ -81,6 +86,7 @@
     {
       "externalId": "trident-booksellers",
       "title": "Trident Booksellers & Cafe",
+      "url": "https://tridentbookscafe.com/",
       "description": "A bookshop with a cafe inside: browse, then settle in with a drink.",
       "category": "Cafe",
       "tags": ["books", "cafe", "quiet", "indoor", "coffee"],
@@ -97,6 +103,7 @@
     {
       "externalId": "brattle-theatre",
       "title": "A film at the Brattle Theatre",
+      "url": "https://brattlefilm.org/",
       "description": "A single-screen repertory cinema showing classics, cult favourites and new independent films.",
       "category": "Film",
       "tags": ["film", "cinema", "indie", "indoor", "classic"],
@@ -113,6 +120,7 @@
     {
       "externalId": "bpl-copley",
       "title": "Boston Public Library, Copley Square",
+      "url": "https://www.bpl.org/",
       "description": "A grand old library with murals, a quiet reading room and an arcaded courtyard.",
       "category": "Sights",
       "tags": ["architecture", "local history", "quiet", "indoor", "free", "library"],
@@ -129,6 +137,7 @@
     {
       "externalId": "arnold-arboretum",
       "title": "Arnold Arboretum ramble",
+      "url": "https://arboretum.harvard.edu/",
       "description": "A big hillside tree collection with winding paths and a skyline view from the top.",
       "category": "Outdoors",
       "tags": ["walk", "outdoors", "nature", "trees", "free"],
@@ -145,6 +154,7 @@
     {
       "externalId": "ica-boston",
       "title": "Institute of Contemporary Art",
+      "url": "https://www.icaboston.org/",
       "description": "Contemporary art in a building that hangs over the harbour, with steps outside facing the water.",
       "category": "Museum",
       "tags": ["art", "contemporary art", "museum", "waterfront", "indoor"],
@@ -161,6 +171,7 @@
     {
       "externalId": "freedom-trail-walk",
       "title": "Self-guided Freedom Trail walk",
+      "url": "https://www.thefreedomtrail.org/",
       "description": "Follow the red line through downtown past old meeting houses, burying grounds and the harbour.",
       "category": "Sights",
       "tags": ["local history", "walk", "outdoors", "exploring", "free"],
@@ -176,6 +187,7 @@
     {
       "externalId": "bow-market",
       "title": "Bow Market",
+      "url": "https://www.bowmarketsomerville.com/",
       "description": "A courtyard of small food counters and independent shops. Easy to graze and hang around.",
       "category": "Food",
       "tags": ["food", "street food", "shops", "casual", "courtyard"],
@@ -192,6 +204,7 @@
     {
       "externalId": "candlepin-davis",
       "title": "Candlepin bowling in Davis Square",
+      "url": "https://flatbreadcompany.com/",
       "description": "Old New England style bowling with small balls and thin pins, next to a pizza kitchen.",
       "category": "Games",
       "tags": ["bowling", "games", "pizza", "lively", "indoor"],
@@ -208,6 +221,7 @@
     {
       "externalId": "mount-auburn-cemetery",
       "title": "Mount Auburn Cemetery walk",
+      "url": "https://mountauburn.org/",
       "description": "A landscaped garden cemetery with ponds, old trees, birds and a tower with a view.",
       "category": "Outdoors",
       "tags": ["walk", "quiet", "nature", "local history", "birding", "free"],
@@ -224,6 +238,7 @@
     {
       "externalId": "club-passim",
       "title": "Folk night at Club Passim",
+      "url": "https://www.passim.org/",
       "description": "A small basement listening room for folk and acoustic music, where people come to listen.",
       "category": "Music",
       "tags": ["live music", "folk", "acoustic", "indoor", "evening"],

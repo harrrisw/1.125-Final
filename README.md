@@ -24,6 +24,13 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
                 mood, drafts                               messages
 ```
 
+## Ideas, links and saved plans
+
+- Every idea the companion offers links to the venue's website (when the catalog has one) and to Google Maps, and "Show on a map" opens an in-app map with a numbered pin per idea.
+- An outing can have several stops. When you settle on one, the companion can save it with `save_plan`. Saved plans live in the **Plans** tab: each shows its stops in order with links, a map with the route drawn between them, and one link that opens the whole route in Google Maps.
+- Saved plans are private, like memory, so saving one needs no confirm card. Sharing an outing with other people is still a board post and still goes through the confirm gate.
+- The map draws OpenStreetMap tiles. Their free tile server is fine for a small pilot; a larger launch should switch to a tile provider (`TILES` in `src/components/places-map.tsx`).
+
 ## One chat turn
 
 1. **Understand** (`src/lib/understand`): a structured-output call extracts mood, energy, who you want around, free time, and lasting facts.
@@ -38,6 +45,7 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 | Path | What lives there |
 | --- | --- |
 | `supabase/migrations/0001_init.sql` | Schema, row-level security, the confirm-gate functions and triggers |
+| `supabase/migrations/0002_itineraries.sql` | Saved plans (private itineraries with ordered stops), and street addresses for the matcher's candidates |
 | `src/lib/agent/` | System prompt, the five agent tools, the turn runner |
 | `src/lib/understand/` | Extraction schema and call |
 | `src/lib/memory/` | Long-term profile and current state |
@@ -46,7 +54,9 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 | `src/lib/safety/` | Moderation for anything that becomes public |
 | `src/lib/integrations/` | Seed catalog, Google Places, Ticketmaster, calendar link |
 | `src/app/api/` | Chat stream, confirm and cancel, join, plan chat, memory, cron jobs |
-| `src/app/(app)/` | Chat, Board, Memory and plan pages |
+| `src/app/(app)/` | Chat, Board, Plans (`/planner`), Memory, and board-post pages (`/plans/[id]`) |
+| `src/lib/links.ts`, `src/components/places-map.tsx` | Website and Google Maps links for every idea, and the in-app map |
+| `src/lib/itineraries.ts` | Saved plans: save, list, remove a stop, delete |
 | `tests/` | Unit tests, plus database tests that run the real migration in-process |
 | `evals/` | Ranking ablation (offline) and memory-accuracy eval (calls the API) |
 | `data/seed-activities.json` | Sample Boston-area catalog |
@@ -59,7 +69,7 @@ You need Node.js 22 or newer.
 npm install
 ```
 
-1. Create a project at [supabase.com](https://supabase.com). In the SQL editor, run the contents of `supabase/migrations/0001_init.sql`.
+1. Create a project at [supabase.com](https://supabase.com). In the SQL editor, run the contents of `supabase/migrations/0001_init.sql`, then `supabase/migrations/0002_itineraries.sql` (safe to run again if it was interrupted). Each should end with "Success. No rows returned".
 2. In Supabase, under Authentication > URL Configuration, set the Site URL to `http://localhost:3000` and add `http://localhost:3000/auth/confirm` as a redirect URL.
 
    Two things to know about sign-in while testing:
@@ -138,7 +148,15 @@ Run on this machine when the scaffold was written:
   - Sign-out worked, and deleting the account removed its messages, memory, drafts and posts.
 - Through MIT Parley, streamed replies need a repair step: Parley removes the model's thinking block but forwards one leftover event for it, which crashes the SDK's stream reader. `src/lib/llm/sse.ts` drops such events and `tests/llm.test.ts` covers it.
 
+- Links and saved plans: the 15 sample venues with a website I could reach have `url` set (Castle Island and the Middlesex Fells have only the map link). The saved-plans tables, their privacy rules, `save_itinerary`, re-running 0002, and the address column are tested in PGlite, and the link builders in `tests/links.test.ts`. Signed out, `/planner` redirects to sign-in.
+- A second test-account run (before 0002 was on the live project; account removed afterwards):
+  - Asked for a quiet afternoon around Back Bay or Cambridge, the companion offered three picks, each with a working Website link and an Open in Google Maps link that open in a new tab, and suggested combining two of them into one outing.
+  - "Show all 3 on a map" showed an OpenStreetMap map with pins numbered like the cards, in the right places; tapping a pin showed its name and a Google Maps link.
+  - The Plans tab showed the "one more database step" notice. Asked to save the plan, the companion said it could not, gave the plan in text and offered a calendar entry instead.
+
 Not yet verified:
+
+- With 0002 on the live project: the companion saving a multi-stop plan, the Plans tab and plan page (route map, links, remove a stop, delete), the Undo on the saved-plan card, and map links that search by street address.
 
 - The emailed sign-in link. The test account skipped email, so Supabase's mailer and the `?code=` link style have not been exercised.
 - Joining someone else's plan, which needs two accounts. Capacity and block rules are tested in PGlite only.

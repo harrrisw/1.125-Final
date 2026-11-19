@@ -4,6 +4,7 @@ import { buildTurnContext, SYSTEM_PROMPT } from "@/lib/agent/prompt";
 import { buildAgentTools, type ToolContext } from "@/lib/agent/tools";
 import { insertMessage, loadMessages, loadRecentDrafts } from "@/lib/chat/store";
 import { HISTORY_MESSAGES, MODELS, RECALL_LIMIT } from "@/lib/config";
+import { listSavedPlans } from "@/lib/itineraries";
 import { anthropic, messageThreadParams, refusalFallbackParams } from "@/lib/llm/client";
 import { addFacts, dedupeFacts, listMemory, recall } from "@/lib/memory/profile";
 import { hasSignal, loadState, mergeState, saveState } from "@/lib/memory/state";
@@ -85,9 +86,14 @@ export async function runTurn({ db, userId, text, emit }: RunTurnInput): Promise
   const { state, noted } = await understandAndRemember(db, userId, text, userMessage.id, history, now);
   if (noted.length > 0) emit({ type: "cards", cards: noted });
 
-  const [memories, drafts] = await Promise.all([
+  const [memories, drafts, plans] = await Promise.all([
     recall(db, userId, text, RECALL_LIMIT),
     loadRecentDrafts(db, userId),
+    // Saved plans are an extra: a turn still works if they cannot be loaded.
+    listSavedPlans(db, userId, 5).catch((err) => {
+      console.error("could not load saved plans for context", err instanceof Error ? err.message : err);
+      return [];
+    }),
   ]);
 
   const ctx: ToolContext = {
@@ -111,7 +117,7 @@ export async function runTurn({ db, userId, text, emit }: RunTurnInput): Promise
       ...toHistoryParams(history),
       {
         role: "user",
-        content: `${buildTurnContext({ now, state, memories, history, drafts })}\n\n${text}`,
+        content: `${buildTurnContext({ now, state, memories, history, drafts, plans })}\n\n${text}`,
       },
     ],
     stream: true,

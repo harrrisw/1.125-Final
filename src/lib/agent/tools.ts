@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { listBoard } from "@/lib/board";
 import { confirmCardFor, proposeAction } from "@/lib/gate/propose";
+import { savePlan } from "@/lib/itineraries";
 import { eagerToolInput } from "@/lib/llm/client";
 import { findPicks } from "@/lib/matcher";
 import { logRecEvent } from "@/lib/telemetry";
@@ -16,6 +17,10 @@ import type { Card } from "@/lib/types";
  *   propose_post          draft  - a mood or plan, waiting for the user's tap
  *   propose_join          draft  - joining someone's post
  *   propose_calendar_add  draft  - a calendar entry
+ *   save_plan             private - an outing with one or more stops, kept in the user's Plans tab
+ *
+ * save_plan writes only to the user's own private rows, like memory does, so
+ * it needs no confirm card: nobody else can see a saved plan.
  *
  * There is no tool that publishes, joins or confirms. The propose tools write
  * a 'proposed' row through the user's own session; only the confirm endpoint,
@@ -32,6 +37,7 @@ export const AGENT_TOOL_NAMES = [
   "propose_post",
   "propose_join",
   "propose_calendar_add",
+  "save_plan",
 ] as const;
 
 export interface ToolContext {
@@ -101,6 +107,10 @@ export function buildAgentTools(ctx: ToolContext) {
             startsAt: p.candidate.startsAt,
             area: p.candidate.area,
             url: p.candidate.url,
+            venueName: p.candidate.venueName,
+            address: p.candidate.address ?? null,
+            lat: p.candidate.lat,
+            lng: p.candidate.lng,
           });
         }
         return ok({
@@ -281,5 +291,53 @@ export function buildAgentTools(ctx: ToolContext) {
     },
   });
 
-  return [findActivities, getBoard, proposePost, proposeJoin, proposeCalendarAdd];
+  const savePlanTool = betaZodTool({
+    name: "save_plan",
+    description:
+      "Save an outing to the user's private Plans tab so they can come back to it: a title and one or more stops in visiting order. There it is shown with a link and a map for every stop. Only the user can see it and nothing is posted, so no confirmation card is needed. Use it when the user asks to save or keep a plan, or agrees when you offer. Every stop must be an activity_id that find_activities returned; other people's open plans cannot be stops. To change a plan saved earlier, save the complete new version with replace_plan_id set to that plan's id.",
+    inputSchema: z.object({
+      title: z
+        .string()
+        .describe("A short name for the outing, such as 'Quiet Tuesday evening in Back Bay'. Under 120 characters."),
+      note: z.string().optional().describe("Optional: a sentence or two about the plan as a whole."),
+      stops: z
+        .array(
+          z.object({
+            activity_id: z.string().describe("The activity_id from find_activities."),
+            starts_at: z
+              .string()
+              .optional()
+              .describe("When they plan to be there, as ISO 8601 with offset. Only if a time was discussed."),
+            note: z.string().optional().describe("One short line about what to do at this stop."),
+          }),
+        )
+        .describe("The stops in visiting order, 1 to 8."),
+      replace_plan_id: z
+        .string()
+        .optional()
+        .describe("The plan_id of an earlier saved plan that this version replaces."),
+    }),
+    ...streamInput,
+    run: async (input) => {
+      try {
+        const plan = await savePlan(ctx.db, ctx.userId, input, ctx.sourceMessageId);
+        ctx.cards.push({
+          type: "plan_saved",
+          planId: plan.id,
+          title: plan.title,
+          stopCount: plan.stops.length,
+        });
+        return ok({
+          status: "saved",
+          plan_id: plan.id,
+          stops: plan.stops.map((s) => s.title),
+          note: "Saved to the user's private Plans tab, where each stop has a link and the stops are on a map. It is not shared with anyone. A card linking to it is now showing.",
+        });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  });
+
+  return [findActivities, getBoard, proposePost, proposeJoin, proposeCalendarAdd, savePlanTool];
 }
