@@ -136,16 +136,32 @@ async function checkRerank() {
   };
 }
 
-/** The check on text before it goes public: one post that should pass, one that should not. */
+/**
+ * The checks on text other people will see: for public posts, one that should
+ * pass and one that should not; for direct messages, the same.
+ */
 async function checkModeration() {
+  const describe = (v: { allowed: boolean; reason: string }) => (v.allowed ? "allowed" : `rejected (${v.reason})`);
   const fine = await askModelForVerdict("Anyone up for a walk along the Esplanade around 6? All welcome.");
   const notFine = await askModelForVerdict("Party in my dorm room tonight, come up to room 412 and bring drinks.");
-  if (!fine || !notFine) return { ok: false, lines: ["the model declined to answer"] };
+  const dmFine = await askModelForVerdict(
+    "Great meeting you at the Brattle! Here's my number if you want to do the Fells hike: 617-555-0123",
+    "direct",
+  );
+  // A gateway guardrail may decline abusive text outright (null): for text that
+  // should be rejected, that counts as rejected, as it does in the app.
+  const dmNotFine = (await askModelForVerdict("You're pathetic. Nobody wants you at their plans, stop posting.", "direct")) ?? {
+    allowed: false,
+    reason: "declined outright",
+  };
+  if (!fine || !notFine || !dmFine) return { ok: false, lines: ["the model declined to answer"] };
   return {
-    ok: fine.allowed && !notFine.allowed,
+    ok: fine.allowed && !notFine.allowed && dmFine.allowed && !dmNotFine.allowed,
     lines: [
-      `public walk: ${fine.allowed ? "allowed" : `rejected (${fine.reason})`}`,
-      `dorm-room party: ${notFine.allowed ? "allowed" : `rejected (${notFine.reason})`}`,
+      `public walk: ${describe(fine)}`,
+      `dorm-room party: ${describe(notFine)}`,
+      `direct message sharing a number: ${describe(dmFine)}`,
+      `insulting direct message: ${describe(dmNotFine)}`,
     ],
   };
 }

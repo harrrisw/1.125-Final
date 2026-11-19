@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type JoinState =
@@ -11,7 +12,7 @@ type JoinState =
 
 /**
  * A person tapping this is the explicit opt-in to join, so it goes straight
- * through the confirm gate in one request.
+ * through the confirm gate in one request. Once in, it opens the group chat.
  */
 export function JoinButton({
   postId,
@@ -22,6 +23,7 @@ export function JoinButton({
   alreadyJoined?: boolean;
   label?: string;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<JoinState>(alreadyJoined ? { kind: "joined" } : { kind: "idle" });
 
   async function join() {
@@ -29,8 +31,12 @@ export function JoinButton({
     try {
       const res = await fetch(`/api/posts/${postId}/join`, { method: "POST" });
       const body = (await res.json().catch(() => null)) as { ok?: boolean; reason?: string } | null;
-      if (body?.ok) setState({ kind: "joined" });
-      else setState({ kind: "failed", reason: body?.reason ?? "That did not go through. Try again." });
+      if (body?.ok) {
+        setState({ kind: "joined" });
+        // Into the group chat; on the post's own page this re-renders with the chat open.
+        router.push(`/plans/${postId}`);
+        router.refresh();
+      } else setState({ kind: "failed", reason: body?.reason ?? "That did not go through. Try again." });
     } catch {
       setState({ kind: "failed", reason: "Could not reach the server. Try again." });
     }

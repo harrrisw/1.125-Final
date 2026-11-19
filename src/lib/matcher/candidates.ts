@@ -80,22 +80,23 @@ export function planToCandidate(post: BoardPost, base: Candidate | undefined): C
   };
 }
 
+/** Catalog places, and events starting in the window, scored against the caller's own memory. */
+export async function loadActivities(db: SupabaseClient, window: TimeWindow): Promise<Candidate[]> {
+  const { data, error } = await db.rpc("candidate_activities", {
+    p_from: window.from.toISOString(),
+    p_to: window.to.toISOString(),
+    p_limit: 200,
+  });
+  if (error) throw new Error(`loadActivities: ${error.message}`);
+  return (data as ActivityRow[]).map(activityToCandidate);
+}
+
 export async function loadCandidates(
   db: SupabaseClient,
   userId: string,
   window: TimeWindow,
 ): Promise<Candidate[]> {
-  const [activitiesRes, board] = await Promise.all([
-    db.rpc("candidate_activities", {
-      p_from: window.from.toISOString(),
-      p_to: window.to.toISOString(),
-      p_limit: 200,
-    }),
-    listBoard(db, 100),
-  ]);
-  if (activitiesRes.error) throw new Error(`loadCandidates: ${activitiesRes.error.message}`);
-
-  const activities = (activitiesRes.data as ActivityRow[]).map(activityToCandidate);
+  const [activities, board] = await Promise.all([loadActivities(db, window), listBoard(db, 100)]);
   const byId = new Map(activities.map((a) => [a.id, a]));
 
   const plans = board

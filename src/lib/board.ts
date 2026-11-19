@@ -74,6 +74,35 @@ export async function getPost(db: SupabaseClient, postId: string): Promise<Board
   return data ? fromRow(data as BoardRow) : null;
 }
 
+export interface Member {
+  userId: string;
+  name: string;
+  role: "host" | "member";
+}
+
+/** Who is in a post's group, host first, then in the order they joined. */
+export async function listMembers(db: SupabaseClient, postId: string): Promise<Member[]> {
+  const { data, error } = await db
+    .from("memberships")
+    .select("user_id, role, joined_at")
+    .eq("post_id", postId)
+    .order("joined_at", { ascending: true });
+  if (error) throw new Error(`listMembers: ${error.message}`);
+  const rows = data as { user_id: string; role: "host" | "member" }[];
+  if (rows.length === 0) return [];
+
+  const { data: profiles, error: profileError } = await db
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", rows.map((r) => r.user_id));
+  if (profileError) throw new Error(`listMembers: ${profileError.message}`);
+  const names = new Map((profiles as { id: string; display_name: string }[]).map((p) => [p.id, p.display_name]));
+
+  return rows
+    .map((r) => ({ userId: r.user_id, name: names.get(r.user_id) ?? "Member", role: r.role }))
+    .sort((a, b) => (a.role === b.role ? 0 : a.role === "host" ? -1 : 1));
+}
+
 export interface ThreadMessage {
   id: string;
   userId: string;

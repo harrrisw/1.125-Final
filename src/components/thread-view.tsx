@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { ThreadMessage } from "@/lib/board";
@@ -61,7 +62,14 @@ export function ThreadView({
                 }`}
               >
                 <p className={`text-xs ${mine ? "opacity-70" : "text-muted"}`}>
-                  {mine ? "You" : m.authorName} · {formatWhen(m.createdAt)}
+                  {mine ? (
+                    "You"
+                  ) : (
+                    <Link href={`/people/${m.userId}`} className="font-medium hover:underline">
+                      {m.authorName}
+                    </Link>
+                  )}{" "}
+                  · {formatWhen(m.createdAt)}
                 </p>
                 <p className="whitespace-pre-wrap">{m.body}</p>
               </div>

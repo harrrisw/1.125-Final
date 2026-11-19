@@ -81,6 +81,8 @@ beforeAll(async () => {
   await db.exec(read("../../supabase/migrations/0002_itineraries.sql"));
   // 0002 is safe to run again (someone re-running it after a failed attempt).
   await db.exec(read("../../supabase/migrations/0002_itineraries.sql"));
+  await db.exec(read("../../supabase/migrations/0003_social.sql"));
+  await db.exec(read("../../supabase/migrations/0003_social.sql"));
 
   alice = await signUp("alice@mit.edu");
   bob = await signUp("bob@g.harvard.edu");
@@ -516,5 +518,141 @@ describe("saved plans", () => {
     const mine = await plansOf(alice);
     expect(mine.plans.map((p) => p.id)).toEqual([replacement]);
     expect(mine.stops.map((s) => s.title)).toEqual(["Tea at a quiet cafe"]);
+  });
+});
+
+describe("profiles and direct messages", () => {
+  let dave: string;
+  let erin: string;
+
+  const send = (from: string, to: string, body: string) =>
+    as("service_role", null, async () => {
+      const res = await db.query<{ thread: string }>("select public.send_direct_message($1, $2, $3) as thread", [
+        from,
+        to,
+        body,
+      ]);
+      return res.rows[0].thread;
+    });
+
+  const messagesSeenBy = (userId: string) =>
+    as("authenticated", userId, async () => {
+      const res = await db.query<{ body: string }>("select body from public.dm_messages order by created_at, body");
+      return res.rows.map((r) => r.body);
+    });
+
+  const inboxOf = (userId: string) =>
+    as("authenticated", userId, async () => {
+      const res = await db.query<{ other_id: string; other_name: string; last_body: string; unread: boolean }>(
+        "select other_id, other_name, last_body, unread from public.dm_inbox order by last_message_at desc",
+      );
+      return res.rows;
+    });
+
+  beforeAll(async () => {
+    dave = await signUp("dave@tufts.edu");
+    erin = await signUp("erin@bu.edu");
+  });
+
+  it("does not let anyone write profile text directly, so it cannot skip moderation", async () => {
+    await as("authenticated", dave, () =>
+      db.query("update public.profiles set bio = 'unchecked', display_name = 'Dave' where id = $1", [dave]),
+    );
+    const res = await db.query<{ bio: string | null; display_name: string }>(
+      "select bio, display_name from public.profiles where id = $1",
+      [dave],
+    );
+    expect(res.rows[0]).toEqual({ bio: null, display_name: "New member" });
+
+    await as("service_role", null, () =>
+      db.query("update public.profiles set bio = $2, hobbies = $3 where id = $1", [
+        dave,
+        "Grad student who likes quiet museums.",
+        ["museums", "film"],
+      ]),
+    );
+    const seen = await as("authenticated", erin, () =>
+      db.query<{ bio: string; hobbies: string[] }>("select bio, hobbies from public.profiles where id = $1", [dave]),
+    );
+    expect(seen.rows[0]).toEqual({ bio: "Grad student who likes quiet museums.", hobbies: ["museums", "film"] });
+  });
+
+  it("keeps profile text short", async () => {
+    await expect(
+      as("service_role", null, () =>
+        db.query("update public.profiles set bio = $2 where id = $1", [dave, "x".repeat(281)]),
+      ),
+    ).rejects.toThrow(/profiles_bio_length/);
+    await expect(
+      as("service_role", null, () =>
+        db.query("update public.profiles set hobbies = $2 where id = $1", [dave, Array.from({ length: 13 }, (_, i) => `h${i}`)]),
+      ),
+    ).rejects.toThrow(/profiles_list_sizes/);
+  });
+
+  it("only lets the server send a message, never a client directly", async () => {
+    await expect(
+      as("authenticated", dave, () => db.query("select public.send_direct_message($1, $2, 'hi')", [dave, erin])),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      as("authenticated", dave, () =>
+        db.query("insert into public.dm_threads (user_a, user_b) values (least($1::uuid, $2::uuid), greatest($1::uuid, $2::uuid))", [dave, erin]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("starts one conversation per pair, readable only by the two of them", async () => {
+    const first = await send(dave, erin, "Want to see the Brattle film on Sunday?");
+    const reply = await send(erin, dave, "Yes! Meet at the box office?");
+    expect(reply).toBe(first);
+
+    expect(await messagesSeenBy(dave)).toEqual(["Want to see the Brattle film on Sunday?", "Yes! Meet at the box office?"]);
+    expect(await messagesSeenBy(erin)).toHaveLength(2);
+    expect(await messagesSeenBy(bob)).toEqual([]);
+    const outsider = await as("authenticated", bob, () => db.query("select 1 from public.dm_threads"));
+    expect(outsider.rows).toHaveLength(0);
+  });
+
+  it("shows each person the other's name, the latest message and what is unread", async () => {
+    const [forDave] = await inboxOf(dave);
+    expect(forDave).toMatchObject({ other_id: erin, last_body: "Yes! Meet at the box office?", unread: true });
+    const [forErin] = await inboxOf(erin);
+    expect(forErin).toMatchObject({ other_id: dave, unread: false });
+
+    // Someone outside the conversation cannot mark it read.
+    await as("authenticated", bob, () => db.query("select public.mark_dm_read((select id from public.dm_threads limit 1))"));
+    expect((await inboxOf(dave))[0].unread).toBe(true);
+
+    const thread = (await as("authenticated", dave, () => db.query<{ id: string }>("select id from public.dm_inbox"))).rows[0].id;
+    await as("authenticated", dave, () => db.query("select public.mark_dm_read($1)", [thread]));
+    expect((await inboxOf(dave))[0].unread).toBe(false);
+  });
+
+  it("refuses messages to yourself or to someone who does not exist", async () => {
+    await expect(send(dave, dave, "hi me")).rejects.toThrow(/someone else/);
+    await expect(send(dave, "00000000-0000-0000-0000-000000000000", "hi")).rejects.toThrow(/could not be found/);
+    await expect(send(dave, erin, "   ")).rejects.toThrow(/1 to 1000/);
+  });
+
+  it("hides the conversation and stops new messages once either person blocks", async () => {
+    await as("authenticated", erin, () =>
+      db.query("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [erin, dave]),
+    );
+    expect(await messagesSeenBy(dave)).toEqual([]);
+    expect(await inboxOf(erin)).toEqual([]);
+    await expect(send(dave, erin, "are you there?")).rejects.toThrow(/cannot message/);
+    await expect(send(erin, dave, "bye")).rejects.toThrow(/cannot message/);
+
+    // Unblocking brings the conversation back, with nothing lost or added.
+    await as("authenticated", erin, () =>
+      db.query("delete from public.blocks where blocker_id = $1 and blocked_id = $2", [erin, dave]),
+    );
+    expect(await messagesSeenBy(dave)).toHaveLength(2);
+  });
+
+  it("removes a member's conversations when their account is deleted", async () => {
+    await db.query("delete from auth.users where id = $1", [erin]);
+    expect(await messagesSeenBy(dave)).toEqual([]);
+    expect(await inboxOf(dave)).toEqual([]);
   });
 });

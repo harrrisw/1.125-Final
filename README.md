@@ -2,7 +2,7 @@
 
 An AI companion for free time that learns your moods and interests, and lets you join what others are up to. Term project for 1.125 Agentic Engineering.
 
-This repository is the scaffold: the full architecture is in place, the core logic is tested, the app runs against a Supabase project with Claude through MIT Parley, and a full chat turn, the memory page and the confirm gate have been run once with a test account. It has not been used by real people yet. See [What is verified](#what-is-verified) before relying on any part.
+This repository is the scaffold: the full architecture is in place, the core logic is tested, the app runs against a Supabase project with Claude through MIT Parley, and the chat, memory, confirm gate, saved plans, Explore, board, group chats, profiles and direct messages have been run with test accounts. It has not been used by real people yet. See [What is verified](#what-is-verified) before relying on any part.
 
 ## The idea in one rule
 
@@ -31,6 +31,14 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 - Saved plans are private, like memory, so saving one needs no confirm card. Sharing an outing with other people is still a board post and still goes through the confirm gate.
 - The map draws OpenStreetMap tiles. Their free tile server is fine for a small pilot; a larger launch should switch to a tile provider (`TILES` in `src/components/places-map.tsx`).
 
+## Explore, the board, profiles and messages
+
+- **Explore** (`/explore`) browses places, events and other people's posts without the companion. Mood chips (Calm, Curious, Social, Active, Outdoors, Artsy, Hungry) match on catalog attributes and words; a keyword search and a calendar filter (today, tonight, tomorrow, this weekend, or a date, in Boston time) narrow it further. Results are ordered by the same scoring as the companion's picks, using your private mood and memory for the order only. A keyword that matches nothing shows nothing rather than unrelated options. Each place has its links, a map, and "Post a plan here".
+- **The board** has the same keyword and date filters plus Plans/Moods, and a composer to post a mood or a plan directly. Posting goes through the same confirm gate and moderation as a draft from the companion: what you type is exactly what is shown, and your tap on Post is the confirmation. Every post opens its **group chat**; Join takes you straight into it, and the page lists who is in, links to the place, and refreshes every few seconds.
+- **Profiles** (`/profile` to edit, `/people/[id]` to view) show a name, area, short bio, hobbies, "likes to", and a current mood that fades after 12 hours. Nothing is copied from private memory: the editor only offers remembered interests and your chat mood as one-tap suggestions. Profile text is public, so the server moderates it and writes it with the service role; migration 0003 removes the client's own update policy so moderation cannot be skipped.
+- **Direct messages** (`/messages`) are one conversation per pair, readable only by the two people. Start one with Message on someone's profile. Messages are moderated for harassment, sexual content, pressure to meet somewhere private, illegal activity and spam; unlike public text, sharing your own number is allowed. A block in either direction hides the conversation, the profile and each other's posts, and stops new messages; Report sends a note (with the message it is about) to the `reports` table.
+- Chats refresh by polling every few seconds while the tab is visible (`src/components/auto-refresh.tsx`). Supabase Realtime can replace it later.
+
 ## One chat turn
 
 1. **Understand** (`src/lib/understand`): a structured-output call extracts mood, energy, who you want around, free time, and lasting facts.
@@ -46,6 +54,7 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 | --- | --- |
 | `supabase/migrations/0001_init.sql` | Schema, row-level security, the confirm-gate functions and triggers |
 | `supabase/migrations/0002_itineraries.sql` | Saved plans (private itineraries with ordered stops), and street addresses for the matcher's candidates |
+| `supabase/migrations/0003_social.sql` | Profile fields, direct messages (`dm_threads`, `dm_messages`, the `dm_inbox` view, `send_direct_message`), and reports on a message |
 | `src/lib/agent/` | System prompt, the five agent tools, the turn runner |
 | `src/lib/understand/` | Extraction schema and call |
 | `src/lib/memory/` | Long-term profile and current state |
@@ -53,8 +62,10 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 | `src/lib/gate/` | `propose.ts` (agent side) and `execute.ts` (confirm side), kept apart on purpose |
 | `src/lib/safety/` | Moderation for anything that becomes public |
 | `src/lib/integrations/` | Seed catalog, Google Places, Ticketmaster, calendar link |
-| `src/app/api/` | Chat stream, confirm and cancel, join, plan chat, memory, cron jobs |
-| `src/app/(app)/` | Chat, Board, Plans (`/planner`), Memory, and board-post pages (`/plans/[id]`) |
+| `src/app/api/` | Chat stream, confirm and cancel, posting and joining, group chat, profile, direct messages, block and report, memory, cron jobs |
+| `src/app/(app)/` | Chat, Explore, Board, Messages, Plans (`/planner`), Profile, Memory, other members' profiles (`/people/[id]`), and each post's group chat (`/plans/[id]`) |
+| `src/lib/explore.ts`, `src/lib/when.ts` | Mood chips, keyword and date filters (calendar windows in Boston time) for Explore and the board |
+| `src/lib/profiles.ts`, `src/lib/messages.ts` | Profiles (moderated saves, block, report) and direct messages |
 | `src/lib/links.ts`, `src/components/places-map.tsx` | Website and Google Maps links for every idea, and the in-app map |
 | `src/lib/itineraries.ts` | Saved plans: save, list, remove a stop, delete |
 | `tests/` | Unit tests, plus database tests that run the real migration in-process |
@@ -69,7 +80,7 @@ You need Node.js 22 or newer.
 npm install
 ```
 
-1. Create a project at [supabase.com](https://supabase.com). In the SQL editor, run the contents of `supabase/migrations/0001_init.sql`, then `supabase/migrations/0002_itineraries.sql` (safe to run again if it was interrupted). Each should end with "Success. No rows returned".
+1. Create a project at [supabase.com](https://supabase.com). In the SQL editor, run the contents of `supabase/migrations/0001_init.sql`, then `0002_itineraries.sql`, then `0003_social.sql` (0002 and 0003 are safe to run again if interrupted). Each should end with "Success. No rows returned". If the editor warns about a destructive operation (the files drop and recreate their own policies), confirm with "Run this query"; otherwise nothing is applied.
 2. In Supabase, under Authentication > URL Configuration, set the Site URL to `http://localhost:3000` and add `http://localhost:3000/auth/confirm` as a redirect URL.
 
    Two things to know about sign-in while testing:
@@ -162,12 +173,21 @@ Run on this machine when the scaffold was written:
   - Google Maps snapped bare coordinates to the shop next to the Brattle and showed no transit route through a middle stop, so the route link now names each stop by name and address and asks for transit only between two stops. Opened again, Google found all three venues.
   - Undo on the card removed the plan. After a reload the card says the plan is no longer saved, instead of offering an Undo that would do nothing.
 
+- Explore, the board, profiles and messages: the 0003 rules are tested in PGlite (profile text cannot be written by a client; only the server can send a message; one conversation per pair, readable by those two only; a block hides it both ways and stops sending; deleting an account removes its conversations; re-running 0003), and the filters and Boston-time windows in `tests/explore.test.ts`.
+- A run with two test accounts, A and B, with 0003 on the live project (both removed afterwards):
+  - Signed out, `send_direct_message` is refused and no messages are visible.
+  - B filled in a profile (moderated, saved, mood shown until 12 hours later). In Explore, Artsy listed Club Passim, the three art museums and the Brattle; "Post a plan here" on the Brattle opened the board composer with the place chosen. The plan (Sunday 7 PM, group of 4) went through the gate and moderation and opened its group chat.
+  - As A, Explore with "film" and "this weekend" found B's plan and the Brattle. Opening the post from the board showed who is in and a Join prompt; Join opened the group chat with B's message, and A's reply posted.
+  - A opened B's profile from the post (bio, hobbies, likes to, current mood, B's plan), tapped Message and sent a direct message, which opened the new conversation. An insulting message was refused. B saw it as unread in Messages, opened it, and replied with a phone number, which direct messages allow.
+  - B reported A (the report points at A's message) and blocked A. The conversation disappeared for both; for A, B's profile reads "not available", messaging B is refused, and B's plan is gone from the board.
+  - Found and fixed in the run: Explore crashed because the mood definitions (with functions) were passed to the filter bar in the browser; the plan composer read the picked time in the device's timezone (now always Boston time); MIT Parley's own guardrail refuses abusive text outright, which the moderation call treated as "could not check, try again" (now: not approved, reword it); and the six-tab menu made pages scroll sideways on a phone (it now wraps).
+
 Not yet verified:
 
 - Replacing a saved plan with `replace_plan_id` from chat (tested in PGlite only).
+- Unblocking from a profile in the browser, a profile save refused by moderation, and a full plan's group chat staying closed (each covered by tests, not run live).
 
 - The emailed sign-in link. The test account skipped email, so Supabase's mailer and the `?code=` link style have not been exercised.
-- Joining someone else's plan, which needs two accounts. Capacity and block rules are tested in PGlite only.
 - The calendar entry, the Undo on a "Noted" chip, and editing a memory.
 - Claude through Anthropic's own API. Only the MIT Parley route has been run.
 - The Voyage embeddings call, and the Google Places and Ticketmaster adapters, which are marked in their files as not yet run against the live APIs.
@@ -183,8 +203,8 @@ Midpoint (agent + memory):
 
 Final (social layer + pilot):
 
-- Live updates on the board and in plan chats (currently refresh on action).
-- Report and block buttons in the UI. The tables and rules exist; the screens do not.
-- A way to post a mood or plan without going through chat.
+- Replace polling in the group chats and messages with Supabase Realtime, and show unread messages in the menu.
+- A screen for the people running the pilot to review reports (today they are rows in `reports`).
+- Rate limits on direct messages to people you have not talked with before.
 - Replace the ranking eval's placeholder scenarios with simulated users, and tune the scoring weights. The harness already shows one case to look at: a strong profile can outweigh a clearly different mood.
 - Schedule `/api/cron/ingest` and `/api/cron/expire`.
