@@ -5,7 +5,8 @@ import {
   resolveWindow,
   withinWindow,
 } from "@/lib/matcher/filters";
-import { applyRerank, fallbackPicks } from "@/lib/matcher/rerank";
+import { applyNear, applyTopic, topicTerms } from "@/lib/matcher/focus";
+import { applyRerank, buildRerankPrompt, fallbackPicks } from "@/lib/matcher/rerank";
 import { moodFit, rank, scoreCandidate, socialFit } from "@/lib/matcher/score";
 import type { Candidate, CurrentState } from "@/lib/types";
 
@@ -210,5 +211,72 @@ describe("re-rank", () => {
     const picks = applyRerank(pool, [{ id: "invented", reason: "nope" }], null, 2);
     expect(picks).toEqual(fallbackPicks(pool, null, 2));
     expect(picks).toHaveLength(2);
+  });
+});
+
+describe("focused searches (one per stop of an outing)", () => {
+  // Taken from the sample catalog: the case that came back empty before
+  // ("something artsy, a walk and a film in Cambridge").
+  const museum = candidate({
+    id: "harvard-art",
+    title: "Harvard Art Museums",
+    category: "Museum",
+    tags: ["art", "museum", "quiet", "indoor", "galleries"],
+    address: "32 Quincy St, Cambridge",
+    area: "Cambridge",
+  });
+  const mfa = candidate({ id: "mfa", title: "Museum of Fine Arts", category: "Museum", tags: ["art", "museum"], area: "Fenway", address: "465 Huntington Ave, Boston" });
+  const brattle = candidate({
+    id: "brattle",
+    title: "A film at the Brattle Theatre",
+    category: "Film",
+    tags: ["film", "cinema", "indie"],
+    address: "40 Brattle St, Cambridge",
+    area: "Harvard Square",
+  });
+  const cemetery = candidate({ id: "mount-auburn", title: "Mount Auburn Cemetery walk", category: "Outdoors", tags: ["walk", "quiet", "nature"], area: "Cambridge" });
+  const trident = candidate({ id: "trident", title: "Trident Booksellers & Cafe", category: "Cafe", tags: ["books", "cafe"], area: "Back Bay", address: "338 Newbury St, Boston" });
+  const all = [trident, mfa, museum, cemetery, brattle];
+  const ids = (items: { candidate: Candidate }[] | Candidate[]) =>
+    items.map((i) => ("candidate" in i ? i.candidate.id : i.id));
+
+  it("stays near a town, matching by address as well as area", () => {
+    const near = applyNear(all, "Cambridge");
+    expect(near.matched).toBe(true);
+    expect(ids(near.items)).toEqual(["harvard-art", "mount-auburn", "brattle"]);
+    expect(ids(applyNear(all, "back bay").items)).toEqual(["trident"]);
+  });
+
+  it("keeps everything, and says so, when nothing is near the place asked for", () => {
+    expect(applyNear(all, "Worcester")).toEqual({ items: all, matched: false });
+    expect(applyNear(all, "  ")).toEqual({ items: all, matched: null });
+  });
+
+  it("finds the kind of thing asked for in everyday words", () => {
+    const ranked = rank(applyNear(all, "Cambridge").items, null, "mood_profile");
+    expect(ids(applyTopic(ranked, "something artsy").items)).toEqual(["harvard-art"]);
+    expect(ids(applyTopic(ranked, "a movie").items)).toEqual(["brattle"]);
+    expect(ids(applyTopic(ranked, "a walk").items)).toEqual(["mount-auburn"]);
+    expect(ids(applyTopic(rank(all, null, "mood_profile"), "art museum").items).sort()).toEqual(["harvard-art", "mfa"]);
+  });
+
+  it("says when the kind of thing was not found, and leaves vague requests to the re-ranker", () => {
+    const ranked = rank(all, null, "mood_profile");
+    const miss = applyTopic(ranked, "karaoke");
+    expect(miss.matched).toBe(false);
+    expect(miss.items).toBe(ranked);
+    expect(applyTopic(ranked, "something fun").matched).toBeNull();
+    expect(topicTerms("Something artsy, then a walk")).toEqual([["artsy", "art"], ["walk"]]);
+  });
+
+  it("passes the request to the re-ranker", () => {
+    const prompt = buildRerankPrompt(rank([museum], null, "mood_profile"), {
+      state: null,
+      memories: [],
+      limit: 3,
+      request: "looking for: a film; near: Cambridge",
+    });
+    expect(prompt).toContain("<request>\nlooking for: a film; near: Cambridge\n</request>");
+    expect(buildRerankPrompt([], { state: null, memories: [], limit: 3 })).not.toContain("<request>");
   });
 });

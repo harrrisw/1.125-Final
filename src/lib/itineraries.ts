@@ -99,6 +99,18 @@ export async function listSavedPlans(db: SupabaseClient, userId: string, limit =
   return (data as unknown as PlanRow[]).map(toSavedPlan);
 }
 
+/**
+ * Which of these plans are no longer saved (undone, deleted, or replaced), so
+ * a chat card from earlier does not still say "Saved".
+ */
+export async function goneSavedPlans(db: SupabaseClient, userId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await db.from("itineraries").select("id").eq("user_id", userId).in("id", ids);
+  if (error) fail("goneSavedPlans", error);
+  const present = new Set((data as { id: string }[]).map((row) => row.id));
+  return ids.filter((id) => !present.has(id));
+}
+
 export async function getSavedPlan(db: SupabaseClient, userId: string, id: string): Promise<SavedPlan | null> {
   const { data, error } = await db
     .from("itineraries")

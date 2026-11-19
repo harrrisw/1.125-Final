@@ -90,9 +90,10 @@ export async function runTurn({ db, userId, text, emit }: RunTurnInput): Promise
     recall(db, userId, text, RECALL_LIMIT),
     loadRecentDrafts(db, userId),
     // Saved plans are an extra: a turn still works if they cannot be loaded.
+    // undefined (not []) then, so the context does not claim there are none.
     listSavedPlans(db, userId, 5).catch((err) => {
       console.error("could not load saved plans for context", err instanceof Error ? err.message : err);
-      return [];
+      return undefined;
     }),
   ]);
 

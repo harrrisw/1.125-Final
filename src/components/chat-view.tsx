@@ -8,9 +8,12 @@ import type { ChatMessage, TurnEvent } from "@/lib/types";
 export function ChatView({
   initialMessages,
   initialActions,
+  gonePlans = [],
 }: {
   initialMessages: ChatMessage[];
   initialActions: Record<string, ActionState>;
+  /** Saved plans that earlier cards point to but that have since been removed. */
+  gonePlans?: string[];
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -110,7 +113,7 @@ export function ChatView({
               ) : (
                 busy && <p className="px-1 text-sm text-muted">Thinking…</p>
               )}
-              <CardList cards={m.cards} actions={initialActions} />
+              <CardList cards={m.cards} actions={initialActions} gonePlans={gonePlans} />
             </div>
           ),
         )}

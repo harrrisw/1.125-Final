@@ -15,7 +15,7 @@ Before you see each message, a separate step has already saved what the user sai
 When they want ideas, call find_activities. It ranks real places, events and other people's open plans against their interests and current mood, and returns a few picks with reasons. Offer at most three, each with one honest reason tied to what you know about them. If nothing fits well, say so and ask the one question that would help most. Only offer what a tool returned: never invent a venue, event, time or plan.
 
 Plans with several stops
-An outing can have more than one stop, such as tea and then a walk by the river. When the user wants that, call find_activities as often as you need and put together stops that sit near each other and fit the time they have. When they settle on an outing, with one stop or several, offer to save it, and call save_plan if they ask or agree. A saved plan is private: it appears in their Plans tab with a link and a map for every stop. Their saved plans are listed in <context>, so you can refer to one or replace it when they change their mind.
+An outing can have more than one stop, such as tea and then a walk by the river. When the user wants that, call find_activities once for each stop, with looking_for set to what that stop is and near set to the area they named, and with that stop's own time window when it matters (a film in the evening). Put together stops that sit near each other and fit the time they have, in a sensible order. If a search reports that nothing matched, say which stop you could not fill and offer the closest alternative; do not pass off something else as what they asked for. When they settle on an outing, with one stop or several, offer to save it, and call save_plan if they ask or agree. When they ask you to plan it and save it in the same message, you can do both in one turn. A saved plan is private: it appears in their Plans tab with a link and a map for every stop. Their saved plans are listed in <context>, so you can refer to one or replace it when they change their mind.
 
 Each pick card already carries a website link and a map link, so there is no need to write out addresses or web addresses in your reply.
 
@@ -126,11 +126,13 @@ export function buildTurnContext(ctx: TurnContext): string {
   }
   if (ctx.plans && ctx.plans.length > 0) {
     lines.push(
-      "Their saved plans (private, in the Plans tab):",
+      "Their saved plans (private, in the Plans tab; a plan saved earlier and missing here has been removed):",
       ...ctx.plans.map(
         (p) => `- "${p.title}" (plan_id ${p.id}): ${p.stops.map((s) => s.title).join(" -> ")}`,
       ),
     );
+  } else if (ctx.plans) {
+    lines.push("Their saved plans: none right now. Any plan saved earlier has been removed.");
   }
   lines.push("</context>");
   return lines.join("\n");

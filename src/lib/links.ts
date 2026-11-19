@@ -49,26 +49,27 @@ export function mapsUrl(place: PlaceRef): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQuery(place))}`;
 }
 
-/** A point for a route: exact coordinates when known, otherwise the name search. */
-function routePoint(place: PlaceRef): string {
-  return hasCoords(place) ? `${place.lat},${place.lng}` : placeQuery(place);
-}
-
 /**
  * Opens Google Maps with the stops as one route, in order. With a single stop
  * this is just the place. Google accepts at most nine waypoints between the
  * first and last stop; plans are capped below that.
+ *
+ * Stops are given by name and address, not coordinates: Google snaps bare
+ * coordinates to whatever business is nearest (the Brattle Theatre came out
+ * as the shop next door). Transit is asked for only between two stops,
+ * because Google Maps on the web shows no transit route through waypoints;
+ * with more stops Google picks the mode and the user can switch.
  */
 export function routeUrl(stops: PlaceRef[]): string | null {
   if (stops.length === 0) return null;
   if (stops.length === 1) return mapsUrl(stops[0]);
   const params = new URLSearchParams({
     api: "1",
-    origin: routePoint(stops[0]),
-    destination: routePoint(stops[stops.length - 1]),
-    travelmode: "transit",
+    origin: placeQuery(stops[0]),
+    destination: placeQuery(stops[stops.length - 1]),
   });
-  const between = stops.slice(1, -1).map(routePoint);
+  const between = stops.slice(1, -1).map(placeQuery);
   if (between.length > 0) params.set("waypoints", between.join("|"));
+  else params.set("travelmode", "transit");
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }

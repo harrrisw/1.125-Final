@@ -17,14 +17,25 @@ type PlanSavedCard = Extract<Card, { type: "plan_saved" }>;
 export function CardList({
   cards,
   actions,
+  gonePlans = [],
 }: {
   cards: Card[];
   actions: Record<string, ActionState>;
+  gonePlans?: string[];
 }) {
   const [mapOpen, setMapOpen] = useState(false);
   if (cards.length === 0) return null;
   const noted = cards.filter((c): c is NotedCard => c.type === "noted");
-  const rest = cards.filter((c) => c.type !== "noted");
+  // A place is shown once even if a message stored it twice (messages saved
+  // before searches in one turn were de-duplicated can hold repeats).
+  const seenPicks = new Set<string>();
+  const rest = cards.filter((c) => {
+    if (c.type === "noted") return false;
+    if (c.type !== "pick") return true;
+    if (seenPicks.has(c.candidateId)) return false;
+    seenPicks.add(c.candidateId);
+    return true;
+  });
 
   // Picks are numbered in the order shown, and the map's pins carry the same numbers.
   const picks = rest.filter((c): c is PickCard => c.type === "pick");
@@ -54,7 +65,7 @@ export function CardList({
         ) : card.type === "confirm" ? (
           <Confirm key={card.actionId} card={card} initial={actions[card.actionId]} />
         ) : card.type === "plan_saved" ? (
-          <PlanSaved key={`plan-${card.planId}`} card={card} />
+          <PlanSaved key={`plan-${card.planId}`} card={card} gone={gonePlans.includes(card.planId)} />
         ) : null,
       )}
       {onMap.length > 0 && (
@@ -149,17 +160,22 @@ function Pick({ card, number }: { card: PickCard; number: number }) {
 }
 
 /** Shown when the companion saved an outing to the Plans tab. Private, and undoable. */
-function PlanSaved({ card }: { card: PlanSavedCard }) {
-  const [state, setState] = useState<"saved" | "working" | "removed">("saved");
+function PlanSaved({ card, gone = false }: { card: PlanSavedCard; gone?: boolean }) {
+  const [state, setState] = useState<"saved" | "working" | "removed" | "failed">(gone ? "removed" : "saved");
 
   async function undo() {
     setState("working");
     const res = await fetch(`/api/itineraries/${card.planId}`, { method: "DELETE" }).catch(() => null);
-    setState(res?.ok ? "removed" : "saved");
+    // 404: it was already removed (from the Plans tab, say), which is what Undo wants.
+    setState(res && (res.ok || res.status === 404) ? "removed" : "failed");
   }
 
   if (state === "removed") {
-    return <p className="rounded-2xl bg-sand px-4 py-3 text-sm text-muted">Removed from your plans.</p>;
+    return (
+      <p className="rounded-2xl bg-sand px-4 py-3 text-sm text-muted">
+        &ldquo;{card.title}&rdquo; is no longer in your plans.
+      </p>
+    );
   }
   const stops = card.stopCount === 1 ? "1 stop" : `${card.stopCount} stops`;
   return (
@@ -175,6 +191,11 @@ function PlanSaved({ card }: { card: PlanSavedCard }) {
           Undo
         </button>
       </p>
+      {state === "failed" && (
+        <p role="alert" className="mt-1 text-sm text-accent">
+          That did not go through. Try again, or delete it from the Plans tab.
+        </p>
+      )}
     </div>
   );
 }

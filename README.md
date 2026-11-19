@@ -27,7 +27,7 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 ## Ideas, links and saved plans
 
 - Every idea the companion offers links to the venue's website (when the catalog has one) and to Google Maps, and "Show on a map" opens an in-app map with a numbered pin per idea.
-- An outing can have several stops. When you settle on one, the companion can save it with `save_plan`. Saved plans live in the **Plans** tab: each shows its stops in order with links, a map with the route drawn between them, and one link that opens the whole route in Google Maps.
+- An outing can have several stops. The companion searches once per stop, saying what the stop is for and where ("art" near "Cambridge", then "a film"), and says so when a stop cannot be filled rather than offering something else in its place. When you settle on an outing, it can save it with `save_plan`, in the same message if you ask it to plan and save at once. Saved plans live in the **Plans** tab: each shows its stops in order with links, a map with the route drawn between them, and one link that opens the whole route in Google Maps (transit between two stops; with more, Google Maps on the web has no transit route, so it opens without a set mode).
 - Saved plans are private, like memory, so saving one needs no confirm card. Sharing an outing with other people is still a board post and still goes through the confirm gate.
 - The map draws OpenStreetMap tiles. Their free tile server is fine for a small pilot; a larger launch should switch to a tile provider (`TILES` in `src/components/places-map.tsx`).
 
@@ -36,7 +36,7 @@ The agent's tools write a *draft* to `pending_actions`. Only a signed-in person 
 1. **Understand** (`src/lib/understand`): a structured-output call extracts mood, energy, who you want around, free time, and lasting facts.
 2. **Remember** (`src/lib/memory`): mood goes to `current_state` and fades in 6 hours; lasting facts go to `memory_items`. New facts are shown in chat as "Noted" chips with Undo.
 3. **Recall**: the most relevant memories plus the live mood go into the agent's context.
-4. **Match** (`src/lib/matcher`): hard filters, then `interest x mood x social` scoring, then an LLM re-rank that explains each pick.
+4. **Match** (`src/lib/matcher`): hard filters, an optional place to stay near, then `interest x mood x social` scoring, an optional kind of thing asked for (`focus.ts`), and an LLM re-rank that explains each pick.
 5. **Offer** (`src/lib/agent`): the agent presents up to three picks and can draft a post, a join or a calendar entry.
 6. **Act** (`src/lib/gate`): your tap confirms the draft, moderation checks any public text, and only then is it carried out.
 
@@ -154,9 +154,17 @@ Run on this machine when the scaffold was written:
   - "Show all 3 on a map" showed an OpenStreetMap map with pins numbered like the cards, in the right places; tapping a pin showed its name and a Google Maps link.
   - The Plans tab showed the "one more database step" notice. Asked to save the plan, the companion said it could not, gave the plan in text and offered a calendar entry instead.
 
+- A third test-account run, with 0002 on the live project (account removed afterwards):
+  - Signed out, `save_itinerary` is refused and no saved plans are visible; the matcher returns street addresses.
+  - Asked for "something artsy, a walk and a film" in Cambridge, the companion first found only the walk: the search had no way to ask for a kind of thing or an area, always returned the same top three, and two searches in one turn showed every card twice. With `looking_for` and `near` it found Mount Auburn Cemetery, the Harvard Art Museums and the Brattle Theatre, with no repeated cards.
+  - "Yes, save it please" saved a three-stop plan with the times discussed (stored correctly as Eastern time), each stop's address, website and coordinates copied in, and a card linking to it. In a later message, "save a shorter version instead" saved a two-stop plan in one turn.
+  - The plan page showed the stops, a map with numbered pins and the route line, per-stop links that search by address, and a route link. Removing a stop renumbered the rest; Delete asked first and then left an empty Plans tab.
+  - Google Maps snapped bare coordinates to the shop next to the Brattle and showed no transit route through a middle stop, so the route link now names each stop by name and address and asks for transit only between two stops. Opened again, Google found all three venues.
+  - Undo on the card removed the plan. After a reload the card says the plan is no longer saved, instead of offering an Undo that would do nothing.
+
 Not yet verified:
 
-- With 0002 on the live project: the companion saving a multi-stop plan, the Plans tab and plan page (route map, links, remove a stop, delete), the Undo on the saved-plan card, and map links that search by street address.
+- Replacing a saved plan with `replace_plan_id` from chat (tested in PGlite only).
 
 - The emailed sign-in link. The test account skipped email, so Supabase's mailer and the `?code=` link style have not been exercised.
 - Joining someone else's plan, which needs two accounts. Capacity and block rules are tested in PGlite only.

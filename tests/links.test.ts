@@ -43,11 +43,17 @@ describe("map links", () => {
     expect(routeUrl([])).toBeNull();
     expect(routeUrl([cafe])).toBe(mapsUrl(cafe));
 
+    // By name and address: bare coordinates snap to the nearest business.
     const url = new URL(routeUrl([cafe, noCoords, library]) as string);
     expect(url.pathname).toBe("/maps/dir/");
-    expect(url.searchParams.get("origin")).toBe("42.3484,-71.0866");
+    expect(url.searchParams.get("origin")).toBe("Trident Booksellers & Cafe, Back Bay, MA");
     expect(url.searchParams.get("waypoints")).toBe("Castle Island, South Boston, MA");
-    expect(url.searchParams.get("destination")).toBe("42.3493,-71.0782");
-    expect(url.searchParams.get("travelmode")).toBe("transit");
+    expect(url.searchParams.get("destination")).toBe(placeQuery(library));
+    // Google Maps on the web has no transit route through waypoints.
+    expect(url.searchParams.has("travelmode")).toBe(false);
+
+    const twoStops = new URL(routeUrl([cafe, library]) as string);
+    expect(twoStops.searchParams.get("travelmode")).toBe("transit");
+    expect(twoStops.searchParams.has("waypoints")).toBe(false);
   });
 });
