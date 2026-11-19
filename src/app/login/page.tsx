@@ -10,7 +10,7 @@ export default function LoginPage() {
         </Link>
         <h1 className="mt-6 font-serif text-3xl font-semibold">Sign in</h1>
         <p className="mt-2 text-muted">
-          Enter your school email and we will send you a one-time sign-in link. No password.
+          Use your school email and a password. New here? Create an account with your school email.
         </p>
       </div>
       <LoginForm />

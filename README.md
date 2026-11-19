@@ -83,9 +83,9 @@ npm install
 1. Create a project at [supabase.com](https://supabase.com). In the SQL editor, run the contents of `supabase/migrations/0001_init.sql`, then `0002_itineraries.sql`, then `0003_social.sql` (0002 and 0003 are safe to run again if interrupted). Each should end with "Success. No rows returned". If the editor warns about a destructive operation (the files drop and recreate their own policies), confirm with "Run this query"; otherwise nothing is applied.
 2. In Supabase, under Authentication > URL Configuration, set the Site URL to `http://localhost:3000` and add `http://localhost:3000/auth/confirm` as a redirect URL.
 
-   Two things to know about sign-in while testing:
-   - Supabase's built-in mailer only delivers to members of your Supabase organization, at about 2 emails an hour. Sign in to Offhours with the address your Supabase account uses, and that address must be on an allowed school domain. Before the pilot, set up custom SMTP (Authentication > Emails > SMTP Settings).
-   - Open the emailed link in the same browser you requested it from. With the default email templates the link only completes there.
+   Sign-in is by school email and password. Two things to know while testing:
+   - New accounts need a confirmation email while Supabase's "Confirm email" setting is on (Authentication > Sign In / Providers > Email), and Supabase's built-in mailer only delivers to members of your Supabase organization, at about 2 emails an hour. To let people create accounts without email for now, switch "Confirm email" off; switch it back on, with custom SMTP (Authentication > Emails > SMTP Settings), before the pilot so addresses are proven to belong to the person.
+   - An account first made with an emailed sign-in link has no password. Give it one with `npm run set-password` (it asks for the email and the password; the password is not shown or stored anywhere but Supabase), or, once signed in, on the Profile page.
 3. Copy the environment template and fill it in:
 
 ```bash
@@ -114,7 +114,7 @@ npm run seed
 npm run dev
 ```
 
-Sign-in is by emailed link and only accepts the school domains listed in `allowed_email_domains` (see the top of the migration). Add your own domain there to test.
+Accounts are only for the school domains listed in `allowed_email_domains` (see the top of the migration). Add your own domain there to test.
 
 ## Commands
 
@@ -127,6 +127,7 @@ Sign-in is by emailed link and only accepts the school domains listed in `allowe
 | `npm run build` | Production build |
 | `npm run seed` | Load `data/seed-activities.json` into the database |
 | `npm run check:llm` | Check the Claude key, endpoint and models by making each kind of call the app uses |
+| `npm run set-password` | Give an existing account a password (for accounts made with an emailed link) |
 | `npm run eval:ranking` | Offline ablation: mood + profile vs profile-only, top-3 |
 | `npm run eval:extraction` | Memory-accuracy eval. Calls the Claude API once per labelled item |
 
@@ -187,7 +188,7 @@ Not yet verified:
 - Replacing a saved plan with `replace_plan_id` from chat (tested in PGlite only).
 - Unblocking from a profile in the browser, a profile save refused by moderation, and a full plan's group chat staying closed (each covered by tests, not run live).
 
-- The emailed sign-in link. The test account skipped email, so Supabase's mailer and the `?code=` link style have not been exercised.
+- Password sign-in: a wrong password gets "That email and password do not match." from Supabase, Create account turns away a non-school address, and `npm run set-password` finds accounts by email. A successful sign-up and sign-in with a password, the confirmation email, and the Profile page's password form have not been run against the live project yet.
 - The calendar entry, the Undo on a "Noted" chip, and editing a memory.
 - Claude through Anthropic's own API. Only the MIT Parley route has been run.
 - The Voyage embeddings call, and the Google Places and Ticketmaster adapters, which are marked in their files as not yet run against the live APIs.

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { PasswordForm } from "@/components/password-form";
 import { ProfileEditor } from "@/components/profile-editor";
 import { PageLoading, SetupNotice } from "@/components/setup-notice";
 import { SocialNotSetUp } from "@/components/social-not-set-up";
@@ -55,6 +56,13 @@ async function Editor() {
         suggestedPreferences={of("like")}
         currentMood={state && state.mood.length > 0 ? state.mood.join(", ") : null}
       />
+      <section className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-5">
+        <div>
+          <h2 className="font-serif text-lg font-semibold">Password</h2>
+          <p className="text-sm text-muted">Set or change the password you sign in with.</p>
+        </div>
+        <PasswordForm />
+      </section>
       <section className="rounded-2xl bg-sand p-5">
         <h2 className="font-serif text-lg font-semibold">Private to you</h2>
         <p className="text-sm">

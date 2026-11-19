@@ -11,6 +11,7 @@
     "test": "vitest run",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "check:llm": "tsx --env-file=.env.local scripts/check-llm.ts",
+    "set-password": "tsx --env-file=.env.local scripts/set-password.ts",
     "eval:ranking": "tsx evals/ranking/run.ts",
     "eval:extraction": "tsx --env-file=.env.local evals/extraction/run.ts"
   },
