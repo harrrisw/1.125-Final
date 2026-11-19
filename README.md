@@ -85,7 +85,7 @@ npm install
 
    Sign-in is by school email and password. Two things to know while testing:
    - New accounts need a confirmation email while Supabase's "Confirm email" setting is on (Authentication > Sign In / Providers > Email), and Supabase's built-in mailer only delivers to members of your Supabase organization, at about 2 emails an hour. To let people create accounts without email for now, switch "Confirm email" off; switch it back on, with custom SMTP (Authentication > Emails > SMTP Settings), before the pilot so addresses are proven to belong to the person.
-   - An account first made with an emailed sign-in link has no password. Give it one with `npm run set-password` (it asks for the email and the password; the password is not shown or stored anywhere but Supabase), or, once signed in, on the Profile page.
+   - An account first made with an emailed sign-in link has no password. "Forgot password?" on the sign-in page emails a link that opens a "Set a new password" page (open it in the same browser), or run `npm run set-password` (it asks for the email and the password; the password is not shown or stored anywhere but Supabase). Once signed in, the password can be changed on the Profile page.
 3. Copy the environment template and fill it in:
 
 ```bash
@@ -188,7 +188,7 @@ Not yet verified:
 - Replacing a saved plan with `replace_plan_id` from chat (tested in PGlite only).
 - Unblocking from a profile in the browser, a profile save refused by moderation, and a full plan's group chat staying closed (each covered by tests, not run live).
 
-- Password sign-in: a wrong password gets "That email and password do not match." from Supabase, Create account turns away a non-school address, and `npm run set-password` finds accounts by email. A successful sign-up and sign-in with a password, the confirmation email, and the Profile page's password form have not been run against the live project yet.
+- Password sign-in: a wrong password gets "That email and password do not match." from Supabase, Create account turns away a non-school address, `npm run set-password` finds accounts by email, "Forgot password?" answers the same whether or not an account exists, an expired link explains itself, and `/reset-password` without a valid link asks for a new one. A successful sign-up and sign-in with a password, the confirmation and reset emails (the built-in mailer was over its hourly limit), and the Profile page's password form have not been run against the live project yet.
 - The calendar entry, the Undo on a "Noted" chip, and editing a memory.
 - Claude through Anthropic's own API. Only the MIT Parley route has been run.
 - The Voyage embeddings call, and the Google Places and Ticketmaster adapters, which are marked in their files as not yet run against the live APIs.

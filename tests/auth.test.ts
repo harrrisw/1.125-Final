@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ALREADY_REGISTERED, authErrorMessage, PasswordSchema, readCredentials } from "@/lib/auth-messages";
+import {
+  ALREADY_REGISTERED,
+  authErrorMessage,
+  linkErrorMessage,
+  PasswordSchema,
+  readCredentials,
+  safeNextPath,
+} from "@/lib/auth-messages";
 
 const form = (fields: Record<string, string>) => {
   const data = new FormData();
@@ -34,5 +41,23 @@ describe("email and password sign-in", () => {
     expect(authErrorMessage("email_not_confirmed", "x")).toMatch(/Confirm your email/);
     expect(authErrorMessage("something_new", "Try again shortly.")).toBe("Try again shortly.");
     expect(authErrorMessage(undefined, "Try again shortly.")).toBe("Try again shortly.");
+  });
+});
+
+describe("emailed links", () => {
+  it("only ever sends people to a page on this site after a link signs them in", () => {
+    expect(safeNextPath("/reset-password")).toBe("/reset-password");
+    expect(safeNextPath(null)).toBe("/chat");
+    expect(safeNextPath("https://evil.example/steal")).toBe("/chat");
+    expect(safeNextPath("//evil.example")).toBe("/chat");
+    // "/\evil.example": some browsers read a backslash as a slash, making this another site.
+    expect(safeNextPath(`/${"\\"}evil.example`)).toBe("/chat");
+  });
+
+  it("explains an expired password link differently from other links", () => {
+    expect(linkErrorMessage("reset")).toMatch(/password link has expired/);
+    expect(linkErrorMessage("link")).toMatch(/link has expired/);
+    expect(linkErrorMessage(null)).toBeNull();
+    expect(linkErrorMessage("something")).toBeNull();
   });
 });

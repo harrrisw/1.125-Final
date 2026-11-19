@@ -35,6 +35,22 @@ export function readCredentials(
   return { ok: true, ...parsed.data };
 }
 
+/**
+ * Where an emailed link may send someone after signing them in: a path on
+ * this site only, never another site ("//evil.example" or a full URL).
+ */
+export function safeNextPath(next: string | null | undefined, fallback = "/chat"): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return fallback;
+  return next;
+}
+
+/** What the sign-in page says when an emailed link did not work. */
+export function linkErrorMessage(error: string | null | undefined): string | null {
+  if (error === "reset") return "That password link has expired or was already used, or was opened in a different browser. Ask for a new one below.";
+  if (error === "link") return "That link has expired or was already used, or was opened in a different browser. Sign in, or ask for a new link.";
+  return null;
+}
+
 export const ALREADY_REGISTERED =
   "This email already has an account. Sign in with your password instead. If you only ever signed in with an emailed link, set a password first.";
 
