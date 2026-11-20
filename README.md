@@ -116,6 +116,28 @@ npm run dev
 
 Accounts are only for the school domains listed in `allowed_email_domains` (see the top of the migration). Add your own domain there to test.
 
+## Putting it online
+
+The app runs on [Vercel](https://vercel.com) (free Hobby plan) with the same Supabase project. Hobby allows requests of up to 300 seconds (the chat turn asks for 120) and scheduled jobs once a day; `vercel.json` runs `/api/cron/expire` and `/api/cron/ingest` daily.
+
+1. **Deploy.** Sign in to Vercel with GitHub, choose Add New > Project, import this repository (give the Vercel GitHub app access to it), and keep the detected Next.js settings. Before the first deploy, add these environment variables (Settings > Environment Variables), with the same values as `.env.local`:
+
+   | Variable | Value |
+   | --- | --- |
+   | `NEXT_PUBLIC_SUPABASE_URL` | the project URL |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable key |
+   | `SUPABASE_SERVICE_ROLE_KEY` | the secret key (server only; never prefix it with `NEXT_PUBLIC_`) |
+   | `ANTHROPIC_API_KEY` | the Claude key (MIT Parley or platform.claude.com) |
+   | `OFFHOURS_LLM_BASE_URL` | `https://parley.api.mit.edu` when using MIT Parley |
+   | `CRON_SECRET` | optional: any long random string, to switch the daily jobs on |
+
+   The `NEXT_PUBLIC_` values are built into the pages, so after changing one, redeploy.
+2. **Tell Supabase about the address.** Under Authentication > URL Configuration, set the Site URL to the Vercel address (for example `https://offhours.vercel.app`) and add `https://<that address>/auth/confirm` to the redirect URLs. Keep `http://localhost:3000/**` there too, so local development still works.
+3. **Email.** Supabase's built-in mailer only sends to members of your Supabase organization (about 2 an hour), so other people would never get a confirmation or password email. Either set up custom SMTP (Authentication > Emails > SMTP Settings; a Gmail account with an app password works for a small pilot) and keep "Confirm email" on, or, for a short demo only, switch "Confirm email" off: then anyone with an allowed school address can sign up at once, without proving the address is theirs, and "Forgot password?" still needs SMTP.
+4. **Check it.** Open the address, create an account, and send one chat message. `npm run check:llm` checks the Claude key separately.
+
+Every chat, extraction, re-rank and moderation call runs on the key in `ANTHROPIC_API_KEY`, so all users' usage is billed to it. MIT Parley is limited to low- and medium-risk data; check that a shared deployment is allowed before inviting people.
+
 ## Commands
 
 | Command | What it does |
